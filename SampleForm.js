@@ -1,162 +1,199 @@
-import Link from "next/link";
-import SampleForm from "./SampleForm";
-import { LeadTable, FAQ, SectionHeading } from "./Sections";
-import { SAMPLE_LEADS } from "../data/leads";
-import { VERTICALS } from "../data/verticals";
+"use client";
 
-// One template renders all 6 SEO money pages. Each page targets ONE keyword
-// cluster, internally links only to its related verticals (no cannibalization),
-// and emits Dataset + FAQPage schema.
+import { useState } from "react";
+import { USER_SEGMENTS, VOLUME_BANDS, USE_CASES } from "../data/leads";
 
-export default function VerticalPage({ slug }) {
-  const v = VERTICALS[slug];
-  const rows = SAMPLE_LEADS[v.sampleKey];
+// Conversion engine, step 3–5: value gate -> capture -> segmentation -> CSV release.
+// On submit: POST to /api/capture-lead (segmentation tagging happens server-side),
+// then unlock the sample CSV download for the given vertical.
 
-  const datasetSchema = {
-    "@context": "https://schema.org",
-    "@type": "Dataset",
-    name: `${v.eyebrow} Lead Stream — LeadsUpload`,
-    description: v.metaDescription,
-    keywords: v.keyword,
-    creator: { "@type": "Organization", name: "LeadsUpload" },
-    isAccessibleForFree: false,
-    license: "https://leadsupload.example/terms",
-  };
-  const faqSchema = {
-    "@context": "https://schema.org",
-    "@type": "FAQPage",
-    mainEntity: v.faqs.map((f) => ({
-      "@type": "Question",
-      name: f.q,
-      acceptedAnswer: { "@type": "Answer", text: f.a },
-    })),
-  };
+export default function SampleForm({ vertical = "b2b", compact = false }) {
+  const [form, setForm] = useState({
+    email: "",
+    industry: vertical,
+    volume: "",
+    segment: "",
+    useCase: "",
+  });
+  const [state, setState] = useState("idle"); // idle | loading | done | error
+  const [downloadReady, setDownloadReady] = useState(false);
+
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const valid =
+    /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(form.email) &&
+    form.volume &&
+    form.segment;
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!valid || state === "loading") return;
+    setState("loading");
+    try {
+      const res = await fetch("/api/capture-lead", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...form, source_page: vertical }),
+      });
+      if (!res.ok) throw new Error("capture failed");
+      setState("done");
+      setDownloadReady(true);
+    } catch {
+      // Funnel must never dead-end: still release the sample on capture error.
+      setState("done");
+      setDownloadReady(true);
+    }
+  }
+
+  function downloadCsv() {
+    // Client-side CSV generation from the sample set for this vertical.
+    import("../data/leads").then(({ SAMPLE_LEADS }) => {
+      const key = vertical === "business-loan-leads" ? "business-loan"
+        : vertical.replace("-leads", "").replace("-usa", "");
+      const rows = SAMPLE_LEADS[key] || SAMPLE_LEADS["b2b"];
+      const headers = Object.keys(rows[0]);
+      const csv = [
+        headers.join(","),
+        ...rows.map((r) =>
+          headers.map((h) => `"${String(r[h] ?? "").replace(/"/g, '""')}"`).join(",")
+        ),
+      ].join("\n");
+      const blob = new Blob([csv], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `leadsupload-sample-${key}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+  }
+
+  if (state === "done") {
+    return (
+      <div className="card p-8 text-center grain relative overflow-hidden">
+        <div className="relative z-10">
+          <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full bg-signal-glow">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#15E0A0" strokeWidth="2.5">
+              <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
+          <h3 className="font-display text-2xl text-paper">Your sample stream is ready</h3>
+          <p className="mt-2 text-slate-muted text-[15px] max-w-sm mx-auto">
+            We&apos;ve tagged your account as <span className="text-signal font-medium">{form.segment}</span> at{" "}
+            <span className="text-signal font-medium">{form.volume}</span>. A segmented follow-up will hit your inbox.
+          </p>
+          <button onClick={downloadCsv} className="btn-primary mt-6">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
+              <path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            Download Sample CSV
+          </button>
+          <p className="mt-4 text-[12px] font-mono text-slate-muted/70">
+            {downloadReady ? "20 mock records · schema-accurate" : ""}
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(datasetSchema) }} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }} />
-
-      {/* HERO */}
-      <section className="relative overflow-hidden grain">
-        <div className="container-content relative z-10 grid items-start gap-14 pt-20 pb-20 lg:grid-cols-[1.1fr_0.9fr]">
-          <div>
-            <nav className="mb-7 flex items-center gap-2 text-[13px] text-slate-muted">
-              <Link href="/" className="transition hover:text-signal">Home</Link>
-              <span>/</span>
-              <span className="text-paper/70">{v.eyebrow} Leads</span>
-            </nav>
-            <span className="eyebrow">{v.eyebrow}</span>
-            <h1 className="mt-5 font-display text-[2.4rem] leading-[1.08] tracking-tight text-paper sm:text-5xl text-balance">
-              {v.h1}
-            </h1>
-            <p className="mt-6 max-w-xl text-[17px] leading-relaxed text-slate-muted">
-              {v.solution}
+    <form onSubmit={handleSubmit} className="card p-7 sm:p-8 grain relative overflow-hidden">
+      <div className="relative z-10">
+        {!compact && (
+          <>
+            <span className="eyebrow">Free sample · no card</span>
+            <h3 className="mt-3 font-display text-2xl text-paper text-balance">
+              Get a real sample stream
+            </h3>
+            <p className="mt-2 text-slate-muted text-[14px]">
+              Schema-accurate mock leads for this vertical. See the structure before you commit.
             </p>
-            <div className="mt-9 flex flex-wrap gap-4">
-              <a href="#sample" className="btn-primary">Download Sample Leads</a>
-              <Link href="/pricing" className="btn-ghost">View pricing</Link>
-            </div>
-          </div>
-          <div id="sample">
-            <SampleForm vertical={slug} />
-          </div>
-        </div>
-      </section>
+          </>
+        )}
 
-      {/* PROBLEM → SOLUTION */}
-      <section className="bg-ink-800/30 py-24">
-        <div className="container-content grid gap-10 lg:grid-cols-2">
-          <div className="card p-8">
-            <span className="eyebrow !text-slate-muted">The problem</span>
-            <p className="mt-5 text-[17px] leading-relaxed text-paper/85">{v.problem}</p>
-          </div>
-          <div className="card p-8 border-signal/30">
-            <span className="eyebrow">The LeadsUpload approach</span>
-            <p className="mt-5 text-[17px] leading-relaxed text-paper/85">{v.solution}</p>
-          </div>
-        </div>
-      </section>
+        <div className="mt-6 space-y-4">
+          <Field label="Work email">
+            <input
+              type="email"
+              required
+              value={form.email}
+              onChange={set("email")}
+              placeholder="you@company.com"
+              className="lu-input"
+            />
+          </Field>
 
-      {/* LEAD TYPE BREAKDOWN */}
-      <section className="container-content py-24">
-        <SectionHeading
-          eyebrow="Stream breakdown"
-          title={`What's inside the ${v.eyebrow.toLowerCase()} stream`}
-          sub="Segmented sub-streams so you only buy the intent that fits your funnel."
-        />
-        <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          {v.leadTypes.map((t) => (
-            <div key={t.name} className="card card-hover p-6">
-              <h3 className="font-display text-lg text-paper">{t.name}</h3>
-              <p className="mt-2.5 text-[14px] leading-relaxed text-slate-muted">{t.desc}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* SAMPLE TABLE */}
-      <section className="bg-ink-800/30 py-24">
-        <div className="container-content">
-          <SectionHeading
-            eyebrow="Live sample"
-            title="Mock records in the exact delivery schema"
-            sub="This is the structure your CSV ships in. Download the full sample below."
-          />
-          <div className="mt-12">
-            <LeadTable rows={rows} />
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Monthly volume">
+              <select value={form.volume} onChange={set("volume")} className="lu-input" required>
+                <option value="">Select…</option>
+                {VOLUME_BANDS.map((v) => (
+                  <option key={v} value={v}>{v}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="You are a">
+              <select value={form.segment} onChange={set("segment")} className="lu-input" required>
+                <option value="">Select…</option>
+                {USER_SEGMENTS.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+            </Field>
           </div>
-          <div className="mt-8 text-center">
-            <a href="#sample" className="btn-primary">Download Sample Leads</a>
-          </div>
-        </div>
-      </section>
 
-      {/* FAQ */}
-      <section className="container-content py-24">
-        <div className="grid gap-14 lg:grid-cols-[0.8fr_1.2fr]">
-          <SectionHeading eyebrow="FAQ" title={`${v.eyebrow} leads, answered`} />
-          <FAQ items={v.faqs} />
+          <Field label="Primary use case (optional)">
+            <select value={form.useCase} onChange={set("useCase")} className="lu-input">
+              <option value="">Select…</option>
+              {USE_CASES.map((u) => (
+                <option key={u} value={u}>{u}</option>
+              ))}
+            </select>
+          </Field>
         </div>
-      </section>
 
-      {/* INTERNAL LINKS — related verticals only (no cannibalization) */}
-      <section className="bg-ink-800/30 py-20">
-        <div className="container-content">
-          <span className="eyebrow">Related streams</span>
-          <div className="mt-8 grid gap-5 sm:grid-cols-2">
-            {v.related.map((r) => {
-              const rv = VERTICALS[r];
-              return (
-                <Link key={r} href={`/${r}`} className="card card-hover group flex items-center justify-between p-7">
-                  <div>
-                    <h3 className="font-display text-xl text-paper">{rv.eyebrow} Leads</h3>
-                    <p className="mt-1.5 text-[13px] text-slate-muted">{rv.keyword}</p>
-                  </div>
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#15E0A0" strokeWidth="2" className="shrink-0 transition group-hover:translate-x-1">
-                    <path d="M5 12h14m0 0l-6-6m6 6l-6 6" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </Link>
-              );
-            })}
-          </div>
-        </div>
-      </section>
+        <button
+          type="submit"
+          disabled={!valid || state === "loading"}
+          className="btn-primary mt-6 w-full disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:shadow-none"
+        >
+          {state === "loading" ? "Preparing your stream…" : "Download Sample Leads"}
+        </button>
 
-      {/* CONVERSION CTA BLOCK */}
-      <section className="container-content py-28">
-        <div className="card relative overflow-hidden grain p-12 text-center sm:p-16">
-          <div className="relative z-10 mx-auto max-w-xl">
-            <h2 className="font-display text-3xl text-paper sm:text-4xl text-balance">
-              Start with a free {v.eyebrow.toLowerCase()} sample
-            </h2>
-            <p className="mt-4 text-[16px] text-slate-muted">
-              Inspect the schema, scoring, and consent fields before anything is signed.
-            </p>
-            <a href="#sample" className="btn-primary mt-8 !px-9 !py-4">Download Sample Leads</a>
-          </div>
-        </div>
-      </section>
-    </>
+        <p className="mt-3 text-center text-[12px] text-slate-muted/80">
+          Sample data only. No contractual data is delivered without a signed agreement.
+        </p>
+      </div>
+
+      <style jsx>{`
+        :global(.lu-input) {
+          width: 100%;
+          background: #11161f;
+          border: 1px solid #27303f;
+          border-radius: 12px;
+          padding: 12px 14px;
+          color: #f7f8fa;
+          font-size: 14px;
+          transition: border-color 0.15s, box-shadow 0.15s;
+          outline: none;
+        }
+        :global(.lu-input:focus) {
+          border-color: #15e0a0;
+          box-shadow: 0 0 0 3px rgba(21, 224, 160, 0.12);
+        }
+        :global(.lu-input::placeholder) {
+          color: #8a93a2;
+        }
+      `}</style>
+    </form>
+  );
+}
+
+function Field({ label, children }) {
+  return (
+    <label className="block">
+      <span className="mb-1.5 block text-[12px] font-medium text-slate-muted">{label}</span>
+      {children}
+    </label>
   );
 }

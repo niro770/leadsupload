@@ -1,123 +1,162 @@
 import Link from "next/link";
-import { VERTICAL_LIST } from "../data/verticals";
+import SampleForm from "./SampleForm";
+import { LeadTable, FAQ, SectionHeading } from "./Sections";
+import { SAMPLE_LEADS } from "../data/leads";
+import { VERTICALS } from "../data/verticals";
 
-export function Nav() {
+// One template renders all 6 SEO money pages. Each page targets ONE keyword
+// cluster, internally links only to its related verticals (no cannibalization),
+// and emits Dataset + FAQPage schema.
+
+export default function VerticalPage({ slug }) {
+  const v = VERTICALS[slug];
+  const rows = SAMPLE_LEADS[v.sampleKey];
+
+  const datasetSchema = {
+    "@context": "https://schema.org",
+    "@type": "Dataset",
+    name: `${v.eyebrow} Lead Stream — LeadsUpload`,
+    description: v.metaDescription,
+    keywords: v.keyword,
+    creator: { "@type": "Organization", name: "LeadsUpload" },
+    isAccessibleForFree: false,
+    license: "https://leadsupload.example/terms",
+  };
+  const faqSchema = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: v.faqs.map((f) => ({
+      "@type": "Question",
+      name: f.q,
+      acceptedAnswer: { "@type": "Answer", text: f.a },
+    })),
+  };
+
   return (
-    <header className="sticky top-0 z-50 border-b border-ink-600/60 bg-ink-900/80 backdrop-blur-md">
-      <div className="container-content flex h-16 items-center justify-between">
-        <Link href="/" className="flex items-center gap-2.5 group">
-          <span className="relative flex h-2.5 w-2.5">
-            <span className="absolute inline-flex h-full w-full rounded-full bg-signal animate-pulse-dot" />
-            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-signal" />
-          </span>
-          <span className="font-display text-[19px] tracking-tight text-paper">
-            Leads<span className="text-signal">Upload</span>
-          </span>
-        </Link>
+    <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(datasetSchema) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }} />
 
-        <nav className="hidden items-center gap-7 md:flex">
-          <DropTrigger />
-          <Link href="/pricing" className="text-[14px] text-slate-muted transition hover:text-paper">
-            Pricing
-          </Link>
-          <Link href="/sample-data" className="text-[14px] text-slate-muted transition hover:text-paper">
-            Sample Data
-          </Link>
-        </nav>
+      {/* HERO */}
+      <section className="relative overflow-hidden grain">
+        <div className="container-content relative z-10 grid items-start gap-14 pt-20 pb-20 lg:grid-cols-[1.1fr_0.9fr]">
+          <div>
+            <nav className="mb-7 flex items-center gap-2 text-[13px] text-slate-muted">
+              <Link href="/" className="transition hover:text-signal">Home</Link>
+              <span>/</span>
+              <span className="text-paper/70">{v.eyebrow} Leads</span>
+            </nav>
+            <span className="eyebrow">{v.eyebrow}</span>
+            <h1 className="mt-5 font-display text-[2.4rem] leading-[1.08] tracking-tight text-paper sm:text-5xl text-balance">
+              {v.h1}
+            </h1>
+            <p className="mt-6 max-w-xl text-[17px] leading-relaxed text-slate-muted">
+              {v.solution}
+            </p>
+            <div className="mt-9 flex flex-wrap gap-4">
+              <a href="#sample" className="btn-primary">Download Sample Leads</a>
+              <Link href="/pricing" className="btn-ghost">View pricing</Link>
+            </div>
+          </div>
+          <div id="sample">
+            <SampleForm vertical={slug} />
+          </div>
+        </div>
+      </section>
 
-        <Link href="/sample-data" className="btn-primary !px-5 !py-2.5 !text-[14px]">
-          Get Sample Leads
-        </Link>
-      </div>
-    </header>
-  );
-}
+      {/* PROBLEM → SOLUTION */}
+      <section className="bg-ink-800/30 py-24">
+        <div className="container-content grid gap-10 lg:grid-cols-2">
+          <div className="card p-8">
+            <span className="eyebrow !text-slate-muted">The problem</span>
+            <p className="mt-5 text-[17px] leading-relaxed text-paper/85">{v.problem}</p>
+          </div>
+          <div className="card p-8 border-signal/30">
+            <span className="eyebrow">The LeadsUpload approach</span>
+            <p className="mt-5 text-[17px] leading-relaxed text-paper/85">{v.solution}</p>
+          </div>
+        </div>
+      </section>
 
-function DropTrigger() {
-  return (
-    <div className="group relative">
-      <button className="flex items-center gap-1.5 text-[14px] text-slate-muted transition hover:text-paper">
-        Lead Streams
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="transition group-hover:rotate-180">
-          <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </button>
-      <div className="invisible absolute left-1/2 top-full w-72 -translate-x-1/2 pt-3 opacity-0 transition-all duration-200 group-hover:visible group-hover:opacity-100">
-        <div className="card p-2">
-          {VERTICAL_LIST.map((v) => (
-            <Link
-              key={v.slug}
-              href={`/${v.slug}`}
-              className="block rounded-lg px-3 py-2.5 transition hover:bg-ink-700"
-            >
-              <span className="block text-[14px] text-paper">{v.eyebrow}</span>
-              <span className="block text-[12px] text-slate-muted">{v.keyword}</span>
-            </Link>
+      {/* LEAD TYPE BREAKDOWN */}
+      <section className="container-content py-24">
+        <SectionHeading
+          eyebrow="Stream breakdown"
+          title={`What's inside the ${v.eyebrow.toLowerCase()} stream`}
+          sub="Segmented sub-streams so you only buy the intent that fits your funnel."
+        />
+        <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          {v.leadTypes.map((t) => (
+            <div key={t.name} className="card card-hover p-6">
+              <h3 className="font-display text-lg text-paper">{t.name}</h3>
+              <p className="mt-2.5 text-[14px] leading-relaxed text-slate-muted">{t.desc}</p>
+            </div>
           ))}
         </div>
-      </div>
-    </div>
-  );
-}
+      </section>
 
-export function Footer() {
-  return (
-    <footer className="border-t border-ink-600/60 mt-32">
-      <div className="container-content py-16">
-        <div className="grid gap-10 md:grid-cols-4">
-          <div className="md:col-span-1">
-            <div className="flex items-center gap-2.5">
-              <span className="h-2.5 w-2.5 rounded-full bg-signal" />
-              <span className="font-display text-[18px] text-paper">
-                Leads<span className="text-signal">Upload</span>
-              </span>
-            </div>
-            <p className="mt-4 text-[13px] leading-relaxed text-slate-muted max-w-xs">
-              Structured, intent-filtered lead streams for outbound conversion performance — not static databases.
+      {/* SAMPLE TABLE */}
+      <section className="bg-ink-800/30 py-24">
+        <div className="container-content">
+          <SectionHeading
+            eyebrow="Live sample"
+            title="Mock records in the exact delivery schema"
+            sub="This is the structure your CSV ships in. Download the full sample below."
+          />
+          <div className="mt-12">
+            <LeadTable rows={rows} />
+          </div>
+          <div className="mt-8 text-center">
+            <a href="#sample" className="btn-primary">Download Sample Leads</a>
+          </div>
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <section className="container-content py-24">
+        <div className="grid gap-14 lg:grid-cols-[0.8fr_1.2fr]">
+          <SectionHeading eyebrow="FAQ" title={`${v.eyebrow} leads, answered`} />
+          <FAQ items={v.faqs} />
+        </div>
+      </section>
+
+      {/* INTERNAL LINKS — related verticals only (no cannibalization) */}
+      <section className="bg-ink-800/30 py-20">
+        <div className="container-content">
+          <span className="eyebrow">Related streams</span>
+          <div className="mt-8 grid gap-5 sm:grid-cols-2">
+            {v.related.map((r) => {
+              const rv = VERTICALS[r];
+              return (
+                <Link key={r} href={`/${r}`} className="card card-hover group flex items-center justify-between p-7">
+                  <div>
+                    <h3 className="font-display text-xl text-paper">{rv.eyebrow} Leads</h3>
+                    <p className="mt-1.5 text-[13px] text-slate-muted">{rv.keyword}</p>
+                  </div>
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#15E0A0" strokeWidth="2" className="shrink-0 transition group-hover:translate-x-1">
+                    <path d="M5 12h14m0 0l-6-6m6 6l-6 6" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* CONVERSION CTA BLOCK */}
+      <section className="container-content py-28">
+        <div className="card relative overflow-hidden grain p-12 text-center sm:p-16">
+          <div className="relative z-10 mx-auto max-w-xl">
+            <h2 className="font-display text-3xl text-paper sm:text-4xl text-balance">
+              Start with a free {v.eyebrow.toLowerCase()} sample
+            </h2>
+            <p className="mt-4 text-[16px] text-slate-muted">
+              Inspect the schema, scoring, and consent fields before anything is signed.
             </p>
-          </div>
-
-          <div>
-            <h4 className="text-[12px] font-mono uppercase tracking-wider text-slate-muted">Lead Streams</h4>
-            <ul className="mt-4 space-y-2.5">
-              {VERTICAL_LIST.slice(0, 3).map((v) => (
-                <li key={v.slug}>
-                  <Link href={`/${v.slug}`} className="text-[14px] text-paper/80 transition hover:text-signal">
-                    {v.eyebrow} Leads
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div>
-            <h4 className="text-[12px] font-mono uppercase tracking-wider text-slate-muted">More Streams</h4>
-            <ul className="mt-4 space-y-2.5">
-              {VERTICAL_LIST.slice(3).map((v) => (
-                <li key={v.slug}>
-                  <Link href={`/${v.slug}`} className="text-[14px] text-paper/80 transition hover:text-signal">
-                    {v.eyebrow} Leads
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div>
-            <h4 className="text-[12px] font-mono uppercase tracking-wider text-slate-muted">Company</h4>
-            <ul className="mt-4 space-y-2.5">
-              <li><Link href="/pricing" className="text-[14px] text-paper/80 transition hover:text-signal">Pricing</Link></li>
-              <li><Link href="/sample-data" className="text-[14px] text-paper/80 transition hover:text-signal">Sample Data</Link></li>
-              <li><a href="#compliance" className="text-[14px] text-paper/80 transition hover:text-signal">Compliance</a></li>
-            </ul>
+            <a href="#sample" className="btn-primary mt-8 !px-9 !py-4">Download Sample Leads</a>
           </div>
         </div>
-
-        <div className="mt-14 flex flex-col gap-3 border-t border-ink-600/60 pt-7 text-[12px] text-slate-muted sm:flex-row sm:items-center sm:justify-between">
-          <p>© {new Date().getFullYear()} LeadsUpload. Intent-filtered lead intelligence.</p>
-          <p className="font-mono">Sample data shown is mock and illustrative only.</p>
-        </div>
-      </div>
-    </footer>
+      </section>
+    </>
   );
 }
